@@ -9,20 +9,21 @@ import rospy
 from pyre import Pyre
 from network_time_sync import Clock_Sync_Master
 
-import logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logging.getLogger('pyre').setLevel(logging.INFO)
+# import logging
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
+# logging.getLogger('pyre').setLevel(logging.INFO)
 
-try:
-    from pyre import __version__
-    assert __version__ >= '0.3.1'
-except (ImportError, AssertionError):
-    raise Exception("Pyre version is to old. Please upgrade")
+# try:
+#     from pyre import __version__
+#     assert __version__ >= '0.3.1'
+# except (ImportError, AssertionError):
+#     raise Exception("Pyre version is too old. Please upgrade")
 
 def run_time_sync_master(group):
 
     pts_group = group + '-time_sync-v1'
+    print 'Looking for group {}'.format(pts_group)
   
     # the time source in the example is python time.time you can change this.
     # replace with an implementation that give your custom time in floating sec.
@@ -34,7 +35,7 @@ def run_time_sync_master(group):
     discovery = Pyre('pupil-helper-service')
     discovery.join(pts_group)
     discovery.start()
-    logger.info('Joining "{}" group with rank {}'.format(pts_group, rank))
+    print 'Joining "{}" group with rank {}'.format(pts_group, rank)
 
     def announce_clock_service_info():
         discovery.shout(pts_group, [repr(rank).encode(), repr(clock_service.port).encode()])
@@ -42,19 +43,18 @@ def run_time_sync_master(group):
     try:
         for event in discovery.events():
             if event.type == 'JOIN' and event.group == pts_group:
-                logger.info('"{}" joined "{}" group. Announcing service.'.format(event.peer_name, pts_group))
+                print '"{}" joined "{}" group. Announcing service.'.format(event.peer_name, pts_group)
                 announce_clock_service_info()
     except KeyboardInterrupt:
         pass
     finally:
-        logger.info('Leaving "{}" group'.format(pts_group))
+        print 'Leaving "{}" group'.format(pts_group)
         discovery.leave(pts_group)
         discovery.stop()
         clock_service.stop()
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
     rospy.init_node('pupil_clock_sync')
     run_time_sync_master('default')
     

@@ -9,7 +9,6 @@ See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 '''
 from time import sleep
-from uvc import get_time_monotonic
 import socket
 import threading
 import asyncore
@@ -252,51 +251,51 @@ class Clock_Sync_Follower(threading.Thread):
                 return 'Synced with {}:{} with  {:.2f}ms jitter'.format(self.host,self.port,self.sync_jitter/self.ms)
         else:
             return "Connecting to {}".format(self.host)
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    from uvc import get_time_monotonic
-    # from time import time as get_time_monotonic
-    #### A Note on system clock jitter
-    # during tests using a Mac and Linux machine on a 3ms latency network with network jitter of ~50us
-    # it became apparent that even on Linux not all clocks are created equal:
-    # on MacOS time.time appears to have low jitter (<1ms)
-    # on Linux (Ubunut Python 2.7) time.time shows more jitter (<3ms)
-    # it is thus recommended for Linux to use uvc.get_time_monotonic.
-    master = Clock_Sync_Master(get_time_monotonic)
-    port = master.port
-    host = "127.0.0.1"
-    epoch = 0.0
-    # sleep(3)
-    # master.stop()
-
-    def get_time():
-        return get_time_monotonic()+epoch
-
-    def jump_time(offset):
-        global epoch
-        epoch -= offset
-        return True
-
-    def slew_time(offset):
-        global epoch
-        epoch -= offset
-
-    def jump_time_dummy(offset):
-        return True
-
-    def slew_time_dummy(offset):
-        pass
-
-    slave = Clock_Sync_Follower(host,port=port,interval=10,time_fn=get_time,jump_fn=jump_time,slew_fn=slew_time)
-    # slave1 = Clock_Sync_Follower(host,port=port,interval=10,time_fn=get_time,jump_fn=jump_time_dummy,slew_fn=slew_time_dummy)
-    # slave2 = Clock_Sync_Follower(host,port=port,interval=10,time_fn=get_time,jump_fn=jump_time_dummy,slew_fn=slew_time_dummy)
-    # slave3 = Clock_Sync_Follower(host,port=port,interval=10,time_fn=get_time,jump_fn=jump_time_dummy,slew_fn=slew_time_dummy)
-    for x in range(10):
-        sleep(4)
-        print(slave)
-        # print "offset:%f, jitter: %f"%(epoch,slave.sync_jitter)
-    print('shutting down')
-    slave.stop()
-    master.stop()
-    print('good bye')
+# 
+# if __name__ == '__main__':
+#     logging.basicConfig(level=logging.DEBUG)
+#     from uvc import get_time_monotonic
+#     # from time import time as get_time_monotonic
+#     #### A Note on system clock jitter
+#     # during tests using a Mac and Linux machine on a 3ms latency network with network jitter of ~50us
+#     # it became apparent that even on Linux not all clocks are created equal:
+#     # on MacOS time.time appears to have low jitter (<1ms)
+#     # on Linux (Ubunut Python 2.7) time.time shows more jitter (<3ms)
+#     # it is thus recommended for Linux to use uvc.get_time_monotonic.
+#     master = Clock_Sync_Master(get_time_monotonic)
+#     port = master.port
+#     host = "127.0.0.1"
+#     epoch = 0.0
+#     # sleep(3)
+#     # master.stop()
+# 
+#     def get_time():
+#         return get_time_monotonic()+epoch
+# 
+#     def jump_time(offset):
+#         global epoch
+#         epoch -= offset
+#         return True
+# 
+#     def slew_time(offset):
+#         global epoch
+#         epoch -= offset
+# 
+#     def jump_time_dummy(offset):
+#         return True
+# 
+#     def slew_time_dummy(offset):
+#         pass
+# 
+#     slave = Clock_Sync_Follower(host,port=port,interval=10,time_fn=get_time,jump_fn=jump_time,slew_fn=slew_time)
+#     # slave1 = Clock_Sync_Follower(host,port=port,interval=10,time_fn=get_time,jump_fn=jump_time_dummy,slew_fn=slew_time_dummy)
+#     # slave2 = Clock_Sync_Follower(host,port=port,interval=10,time_fn=get_time,jump_fn=jump_time_dummy,slew_fn=slew_time_dummy)
+#     # slave3 = Clock_Sync_Follower(host,port=port,interval=10,time_fn=get_time,jump_fn=jump_time_dummy,slew_fn=slew_time_dummy)
+#     for x in range(10):
+#         sleep(4)
+#         print(slave)
+#         # print "offset:%f, jitter: %f"%(epoch,slave.sync_jitter)
+#     print('shutting down')
+#     slave.stop()
+#     master.stop()
+#     print('good bye')

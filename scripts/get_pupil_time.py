@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import zmq
-import time
+import rospy
 
 
 class PupilConnection:
@@ -34,5 +34,11 @@ class PupilConnection:
         return float(tm)
     
 if __name__ == '__main__':
+    rospy.init_node('pupil_time', anonymous=True)
     conn = PupilConnection()
-    print conn.get_pupil_time()
+    tm1 = rospy.get_time()
+    pupil_tm = conn.get_pupil_time()
+    tm2 = rospy.get_time()
+    
+    print 'ROS time:   {}'.format( (tm1 + tm2)/2)
+    print 'Pupil time: {}'.format(pupil_tm)
