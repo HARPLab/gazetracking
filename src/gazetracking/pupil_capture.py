@@ -16,7 +16,8 @@ class PupilCapture():
         host = rospy.get_param('/gazetracking/host', '127.0.0.1')
         port = rospy.get_param('/gazetracking/port', '50020')
         addr = 'tcp://{}:{}'.format(host, port)
-        
+
+        self.logger.info('Connecting to ' + addr)
         self.socket.connect(addr)
 
         # Not sure this is necessary
