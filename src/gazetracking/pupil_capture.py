@@ -2,18 +2,22 @@
 
 import zmq
 import time
+import rospy
 
 
 class PupilCapture():
-    context = zmq.Context()
-    socket = context.socket(zmq.REQ)
-    logger = None
 
     def setup(self, log):
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.REQ)
+        self.logger = log
 
         # setting IP
-        self.socket.connect('tcp://127.0.0.1:50020')
-        self.logger = log
+        host = rospy.get_param('/gazetracking/host', '127.0.0.1')
+        port = rospy.get_param('/gazetracking/port', '50020')
+        addr = 'tcp://{}:{}'.format(host, port)
+        
+        self.socket.connect(addr)
 
         # Not sure this is necessary
         #socket.send('T 0.0') #set timebase to 0.0
@@ -24,7 +28,7 @@ class PupilCapture():
         self.socket.recv()
         delay = time.time()-t
 
-        self.logger.info("Pupil remote controller connected, command time delay: " + str(delay))
+        self.logger.info("Pupil remote controller connected to " + addr + ", command time delay: " + str(delay))
 
     def start(self):
         self.socket.send('R') #start recording with specified name
