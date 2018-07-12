@@ -31,10 +31,18 @@ class PupilCapture():
 
         self.logger.info("Pupil remote controller connected to " + addr + ", command time delay: " + str(delay))
 
-    def start(self):
+    def start_recording(self):
         self.socket.send('R') #start recording with specified name
         self.socket.recv()
 
-    def stop(self):
+    def stop_recording(self):
         self.socket.send('r') # stop recording
+        self.socket.recv()
+
+    def start_calibrating(self):
+        self.socket.send('C') # start calibrating
+        self.socket.recv()
+
+    def stop_calibrating(self):
+        self.socket.send('c') # stop calibrating
         self.socket.recv()
