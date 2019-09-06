@@ -1,0 +1,16 @@
+<launch>
+  <arg name="enable_gaze" default="true" />
+  <arg name="gaze_topic" default="gaze" />
+  <arg name="gaze_throttle_period" default="0.1" />
+  <arg name="enable_frame" default="true" />
+  <arg name="frame_topic" default="pupil_world" />
+  
+  <node pkg="gazetracking" name="pupil_bridge" type="ros_pupil_bridge.py" output="screen">
+    <param name="enable_gaze" value="$(arg enable_gaze)" />
+    <param name="gaze_topic" value="$(arg gaze_topic)" />
+    <param name="gaze_throttle_period" value="$(arg gaze_throttle_period)" />
+    <param name="enable_frame" value="$(arg enable_frame)" />
+    <param name="frame_topic" value="$(arg frame_topic)" />
+  </node> 
+
+</launch>
