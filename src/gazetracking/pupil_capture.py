@@ -38,3 +38,38 @@ class PupilCapture():
     def stop(self):
         self.socket.send('r') # stop recording
         self.socket.recv()
+        
+        
+class ConfigurablePupilCapture():
+    def __init__(self, endpoint, timeout=1000.): # ms
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.REQ)
+        self.socket.connect(endpoint)
+        
+        # Test connection
+        t = time.time()
+        self.socket.send('t') # ask for timestamp; ignoring for now
+        
+        try:
+            self._recv(timeout)
+        except RuntimeError:
+            self.context.destroy(linger=0)
+            raise ValueError("Timed out")
+        
+    def _recv(self, timeout=None):
+        if timeout is None:
+            self.socket.recv()
+        else:
+            evt = self.socket.poll(timeout, zmq.POLLIN)
+            if evt == 0:
+                raise RuntimeError("Timed out getting response from socket")
+            else:
+                return self.socket.recv(flags=zmq.NOBLOCK)
+    
+    def start(self, timeout=None):
+        self.socket.send('R') #start recording with specified name
+        self.socket.recv()
+
+    def stop(self, timeout=None):
+        self.socket.send('r') # stop recording
+        self.socket.recv()
