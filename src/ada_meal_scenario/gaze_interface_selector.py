@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import traceback
 import Tkinter
 import ttk
 import tkFont
@@ -26,7 +27,15 @@ class _DummyTobii:
         self.data = {}
         
     def __gen_index(self, vals):
-        return max([ int(x) if isinstance(x, int) else -1 for x in vals])+1
+        if len(vals) == 0:
+            return 0
+        else:
+            def filt(x):
+                try:
+                    return int(x)
+                except:
+                    return -1
+            return max([ filt(x) for x in vals])+1
     
     def get_projects(self):
         return self.data.keys()
@@ -36,26 +45,26 @@ class _DummyTobii:
         if proj not in self.data:
             print('init proj')
             self.data[proj] = {}
-        return self.data[proj].keys()
+        return proj, self.data.keys(), self.data[proj].keys()
     
     def set_participant(self, proj, part):
         if part not in self.data[proj]:
-            self.data[proj][part] = {}
-        return self.data[proj][part].keys()
+            self.data[proj][part] = {'cal': [], 'rec': [] }
+        return part, self.data[proj].keys(), self.data[proj][part]['cal']
     
     def set_calibration(self, proj, part, cal=None):
-        if cal is None:
-            cal = self.__gen_index(self.data[proj][part].keys())
-        if cal not in self.data[proj][part]:
-            self.data[proj][part][cal] = []
-        return self.data[proj][part][cal].keys()
+        if cal is None or cal == '':
+            cal = self.__gen_index(self.data[proj][part]['cal'])
+        if cal not in self.data[proj][part]['cal']:
+            self.data[proj][part]['cal'] += [cal]
+        return cal, self.data[proj][part]['cal'], self.data[proj][part]['rec']
     
     def set_recording(self, proj, part, cal, rec=None):
         if rec is None:
-            rec = self.__gen_index(self.data[proj][part][cal].keys())
-        if rec not in self.data[proj][part][cal]:
-            self.data[proj][part][cal][rec] = []
-        return []
+            rec = self.__gen_index(self.data[proj][part]['rec'])
+        if rec not in self.data[proj][part]['rec']:
+            self.data[proj][part]['rec'] += [rec]
+        return rec, self.data[proj][part]['rec'], None
             
     
 class TobiiConnection:
@@ -74,12 +83,17 @@ class TobiiConnection:
         def make_state_transition(*args, **kwargs):
             def decorator(fcn):
                 def wrapper(inst, *args_inner, **kwargs_inner):
-                    return inst.__do_state_transition(fcn, *args, **kwargs)
+                    kwargs_all = dict(**kwargs)
+                    kwargs_all.update(kwargs_inner)
+                    print(inst)
+                    print(args+args_inner)
+                    print(kwargs_all)
+                    return inst._do_state_transition(fcn, *(args+args_inner), **kwargs_all)
                 return wrapper
             return decorator
     
     def __init__(self):
-        self._state = _States.DISCONNECTED
+        self._state = TobiiConnection._States.DISCONNECTED
         self._endpoint = None
         self._project = None
         self._participant = None
@@ -88,40 +102,40 @@ class TobiiConnection:
         self._connection = {}
         
     def __reset_state_to(self, state):
-        if state <= _States.DISCONNECTED:
+        if state <= TobiiConnection._States.DISCONNECTED:
             self._endpoint = None
             print("reset endpt")
 #             self._connection = {} # add back in when we have a transient connection, or not I guess
-        if state <= _States.REQ_PROJECT:
+        if state <= TobiiConnection._States.REQ_PROJECT:
             self._project = None
-        if state <= _States.REQ_PARTICIPANT:
+        if state <= TobiiConnection._States.REQ_PARTICIPANT:
             self._participant = None
-        if state <= _States.REQ_CALIBRATION:
+        if state <= TobiiConnection._States.REQ_CALIBRATION:
             self._calibration = None
-        if state <= _States.REQ_RECORDING:
+        if state <= TobiiConnection._States.REQ_RECORDING:
             self._recording = None
         
         self._state = state
         
-    def __do_state_transition(self, validator, expected_state, next_state, value_name, value):
+    def _do_state_transition(self, validator, expected_state, next_state, value_name, value):
         print("Setting {} to {} (state={})".format(value_name, value, self._state))
         if self._state < expected_state:
             raise RuntimeError("Cannot update {}: in invalid state {}".format(value_name, self._state))
         # short circuit
         if getattr(self, value_name) == value:
-            return True, None, None, None
+            return True, None, value, None, None
         
         try:
-            print("Checking value")
-            val, cur_opts, next_opts = validator(value)
+            val, cur_opts, next_opts = validator(self, value)
             setattr(self, value_name, val)
             self.__reset_state_to(next_state)
-            return True, None, cur_opts, next_opts
+            return True, None, val, cur_opts, next_opts
         except BaseException as e:
+            traceback.print_exc()
             # reset state
             # or before if no connection?
             self.__reset_state_to(expected_state)
-            return False, str(e), None, []
+            return False, str(e), val, None, []
         
         
         
@@ -139,34 +153,23 @@ class TobiiConnection:
     def update_endpoint(self, endpoint):
         if endpoint not in self._connection:
             self._connection[endpoint] = _DummyTobii()
-        return endpoint, self._connection[endpoint].get_projects()
-        
-    def update_project(self, project):
-        def set_project(proj):
-            print('conn: {}, endpt: {}'.format(self._connection, self._endpoint))
-            return proj, self._connection[self._endpoint].set_project(proj)
-        return self.__do_state_transition(TobiiConnection._States.REQ_PROJECT, 
-                        TobiiConnection._States.REQ_PARTICIPANT, '_project', project, set_project)
-        
-    def update_participant(self, participant):
-        def set_participant(part):
-            return part, self._connection[self._endpoint].set_participant(self._project, part)
-        return self.__do_state_transition(TobiiConnection._States.REQ_PARTICIPANT, 
-                        TobiiConnection._States.REQ_CALIBRATION, '_participant', participant, set_participant)
+        return endpoint, None, self._connection[endpoint].get_projects()
+     
+    @_Decorators.make_state_transition(_States.REQ_PROJECT, _States.REQ_PARTICIPANT, '_project')   
+    def update_project(self, proj):
+        return self._connection[self._endpoint].set_project(proj)
+     
+    @_Decorators.make_state_transition(_States.REQ_PARTICIPANT, _States.REQ_CALIBRATION, '_participant')      
+    def update_participant(self, part):
+        return self._connection[self._endpoint].set_participant(self._project, part)
     
-    def update_calibration(self, calibration=None):
-        def set_calibration(cal=None):
-            return cal, self._connection[self._endpoint].set_calibration(self._project, self._participant, cal)
-        return self.__do_state_transition(TobiiConnection._States.REQ_CALIBRATION, 
-                        TobiiConnection._States.REQ_RECORDING, '_calibration', calibration, set_calibration)
+    @_Decorators.make_state_transition(_States.REQ_CALIBRATION, _States.REQ_RECORDING, '_calibration')  
+    def update_calibration(self, cal=None):
+        return self._connection[self._endpoint].set_calibration(self._project, self._participant, cal)
     
+    @_Decorators.make_state_transition(_States.REQ_RECORDING, _States.READY, '_recording')  
     def update_recording(self, recording=None):
-        def set_recording(rec=None):
-            return rec, self._connection[self._endpoint].set_recording(self._project, self._participant, self._calibration, rec)
-        res, msg, proj = self.__do_state_transition(TobiiConnection._States.REQ_RECORDING, 
-                        TobiiConnection._States.READY, '_recording', recording, set_recording)
-        return res, msg, proj
-        
+        return self._connection[self._endpoint].set_recording(self._project, self._participant, self._calibration, recording)
         
 class GazeInterfaceSelector:
     def __init__(self, frame, default_font):  
@@ -230,13 +233,16 @@ class GazeInterfaceSelector:
         self.combobox_tobii_participant['state'] = 'disabled'
         
         # Tobii calibration
-        self.label_tobii_calibration = Tkinter.Label(self.tobii_frame, text='Calibration ID')
+        self.cal_frame = Tkinter.Frame(self.tobii_frame)
+        self.cal_frame.grid(sticky=Tkinter.W)
+        self.label_tobii_calibration = Tkinter.Label(self.cal_frame, text='Calibration ID')
         self.label_tobii_calibration.grid(sticky=Tkinter.W)
         self.value_tobii_calibration = Tkinter.StringVar()
-        self.combobox_tobii_calibration = ttk.Combobox(self.tobii_frame, values=[], textvariable=self.value_tobii_calibration)
+        self.combobox_tobii_calibration = ttk.Combobox(self.cal_frame, values=[], textvariable=self.value_tobii_calibration)
         self.combobox_tobii_calibration.grid(sticky=Tkinter.W)
         self.combobox_tobii_calibration['state'] = 'disabled'
-        self.button_tobii_calibrate = Tkinter.Button(self.tobii_frame, text="Calibrate", state="disabled")
+        self.button_tobii_calibrate = Tkinter.Button(self.cal_frame, text="Calibrate", state="disabled")
+#         self.button_tobii_calibrate.grid(row=1, column=1, sticky=Tkinter.W)
         
         # Tobii recording
         self.label_tobii_recording = Tkinter.Label(self.tobii_frame, text='Recording ID')
@@ -283,18 +289,18 @@ class GazeInterfaceSelector:
                    var = self.value_tobii_calibration,
                    next_field = self.combobox_tobii_recording
                    ))
-        self.button_tobii_calibrate.configure(command= 
-               self.make_update_tobii_values(
-                   pre_status = "Runnin calibration. Present target to participant.",
-                   success_status = "Calibration successful.",
-                   update_fcn = self.tobii_connection.update_calibration,
-                   var = None,
-                   next_field = self.combobox_tobii_recording
-                   ))
+#         self.button_tobii_calibrate.configure(command= 
+#                self.make_update_tobii_values(
+#                    pre_status = "Running calibration. Present target to participant.",
+#                    success_status = "Calibration successful.",
+#                    update_fcn = self.tobii_connection.update_calibration,
+#                    var = None,
+#                    next_field = [self.combobox_tobii_recording]
+#                    ))
         self.combobox_tobii_recording.bind("<Return>", 
                self.make_update_tobii_values(
                    pre_status = "Setting recording...",
-                   success_status = "Recording set.",
+                   success_status = "Ready.",
                    update_fcn = self.tobii_connection.update_recording,
                    var = self.value_tobii_recording,
                    next_field = None
@@ -320,13 +326,15 @@ class GazeInterfaceSelector:
         self.label_pupil_status['text'] = msg
         
     def make_update_tobii_values(self, pre_status, success_status, update_fcn, var, next_field):
-        def update_tobii_values(evt):
+        def update_tobii_values(evt=None):
             self.label_tobii_status['text'] = pre_status
             self.label_tobii_status.update_idletasks()
-            res, msg, vals, next_vals = update_fcn(var.get() if var is not None else None)
+            res, msg, val, vals, next_vals = update_fcn(var.get() if var is not None else None)
             if res:
-                if vals is not None:
+                if vals is not None and evt is not None:
                     evt.widget['values'] = vals
+                if val is not None and val != '':
+                    var.set(val)
                 if next_field is not None:
                     if next_vals is not None:
                         next_field.configure(values=next_vals)
