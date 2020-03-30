@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 
-import traceback
 import Tkinter
 import ttk
 import tkFont
 import gazetracking.pupil_capture as pupil
 import gazetracking.tobii_interface as tobii
 import logging
-import urllib2
 
 class GazeInterfaceSelector:
     def __init__(self, frame, default_font=None, default_bg=None):
@@ -241,7 +239,8 @@ class GazeInterfaceSelector:
                         elem["state"] = "disabled"
                 btn_args = {'bg': "#cc0000" if do_enable else self._bg_color,
                             'activebackground': "#ff0000" if do_enable else "white" }    
-                self.selector_buttons[val].configure(**btn_args)
+                print('{}: {}'.format(k, btn_args))
+                self.selector_buttons[k].configure(**btn_args)
             self.gaze_option = val
             
         return select_gaze
@@ -250,7 +249,8 @@ class GazeInterfaceSelector:
         conn = self.connections[self.gaze_option]
         try:
             return conn.get_connection() if conn else None
-        except:
+        except BaseException as e:
+            print(e)
             return None
 
 class GazeInterfaceTester():
@@ -284,7 +284,25 @@ class GazeInterfaceTester():
         
 if __name__ == "__main__":
     tester = GazeInterfaceTester()
-    print(tester.run())
+    recorder = tester.run()
+    if recorder:
+        while True:
+            input = raw_input('enter start, stop, event <name> <details>, quit\n> ')
+            if input == 'start':
+                res = recorder.start()
+                print('started, res={}'.format(res))
+            elif input == 'stop':
+                res = recorder.stop()
+                print('stopped, res={}'.format(res))
+            elif input.startswith('event'):
+                vals = ' '.split(input)
+                v1 = vals[1] if len(vals) > 1 else ''
+                v2 = vals[2] if len(vals) > 2 else ''
+                res = recorder.send_event(v1, v2)
+                print('sent event {} {}, res={}'.format(v1, v2, res))
+            elif input == 'quit':
+                break
+    
     
        
     

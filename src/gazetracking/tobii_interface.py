@@ -1,5 +1,7 @@
 
 
+import urllib2
+import traceback
 
 class _DummyTobii:
     def __init__(self):
@@ -106,7 +108,7 @@ class _RemoteTobii:
     
     def set_recording(self, proj, part, cal=None, rec=''):
         # workaround for TobiiGlassesConnection requiring a project name
-        self._connection.participant_name = part.name
+        self._connection.participant_name = str(part.name)
         rec_id = self._connection.create_recording(part.id, rec)
         return TobiiSelection(rec, rec_id), [], None
     
@@ -230,7 +232,7 @@ class TobiiConnection:
         return self._connection[self._endpoint].set_recording(self._project, self._participant, self._calibration, recording)
     
     def get_connection(self):
-        if self.state < TobiiConnection._States.READY:
+        if self._state < TobiiConnection._States.READY:
             raise RuntimeError("Can't get connection, tobii not ready")
         return self._connection[self._endpoint].make_recorder(self._recording)
-        
+

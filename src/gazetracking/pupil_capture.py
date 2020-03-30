@@ -85,10 +85,12 @@ class ConfigurablePupilCapture():
     def start(self, timeout=None):
         self.socket.send('R') #start recording with specified name
         self.socket.recv()
+        return True # TODO: check of some sort?
 
     def stop(self, timeout=None):
         self.socket.send('r') # stop recording
         self.socket.recv()
+        return True # TODO: check of some sort?
         
     def send_event(self, event_name, event_contents, timeout=None):
         return False
