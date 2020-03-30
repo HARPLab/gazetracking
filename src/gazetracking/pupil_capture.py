@@ -38,7 +38,23 @@ class PupilCapture():
     def stop(self):
         self.socket.send('r') # stop recording
         self.socket.recv()
+
+
+class PupilCaptureCreator():
+    def __init__(self):
+        self.connection = None
         
+    def update(self, endpoint):
+        try:
+            self.connection = ConfigurablePupilCapture(endpoint)
+            return True, 'Connected'
+        except Exception as e:
+            return False, str(e)
+    
+    def get_connection(self):
+        if self.connection is None:
+            raise ValueError('Failed to configure pupil connection!')
+        return self.connection
         
 class ConfigurablePupilCapture():
     def __init__(self, endpoint, timeout=1000.): # ms
