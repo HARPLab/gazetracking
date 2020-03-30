@@ -73,3 +73,7 @@ class ConfigurablePupilCapture():
     def stop(self, timeout=None):
         self.socket.send('r') # stop recording
         self.socket.recv()
+        
+    def send_event(self, event_name, event_contents, timeout=None):
+        return False
+        # TODO: add annotationshttps://docs.pupil-labs.com/developer/core/network-api/#remote-annotations
