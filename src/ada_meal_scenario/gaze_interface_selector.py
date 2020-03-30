@@ -92,7 +92,7 @@ class _RemoteTobii:
         try:
             self._connection = tobiiglassesctrl.TobiiGlassesController(endpoint, timeout=2)
         except NameError: # fix python2 missing ConnectionError
-            raise RuntimeError('timeout')
+            raise RuntimeError('Timed out connecting to {}'.format(endpoint))
         
         
     def get_projects(self):
@@ -121,7 +121,6 @@ class _RemoteTobii:
     
     def set_calibration(self, proj, part, cal=None):
         cal_id = self._connection.create_calibration(proj.id, part.id)
-        # actually calibrate -- do we want to do this here?
         self._connection.start_calibration(cal_id)
         res = self._connection.wait_until_calibration_is_done(cal_id)
         if not res:
@@ -129,6 +128,8 @@ class _RemoteTobii:
         return None, [], None
     
     def set_recording(self, proj, part, cal=None, rec=''):
+        # workaround for TobiiGlassesConnection requiring a project name
+        self._connection.participant_name = part.name
         rec_id = self._connection.create_recording(part.id, rec)
         return TobiiSelection(rec, rec_id), [], None
     
@@ -183,7 +184,6 @@ class TobiiConnection:
     def __reset_state_to(self, state):
         if state <= TobiiConnection._States.DISCONNECTED:
             self._endpoint = None
-            print("reset endpt")
 #             self._connection = {} # add back in when we have a transient connection, or not I guess
         if state <= TobiiConnection._States.REQ_PROJECT:
             self._project = None
