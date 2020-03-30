@@ -5,6 +5,8 @@ import Tkinter
 import ttk
 import tkFont
 import gazetracking.pupil_capture as pupil
+import logging
+import urllib2
 
 class PupilConnection:
     def __init__(self):
@@ -67,7 +69,7 @@ class _DummyTobii:
         return rec, self.data[proj][part]['rec'], None
 
 try:
-    import tobiiglassesctrl 
+    import tobiiglassesctrl
 except ImportError:
     tobiiglassesctrl = None
 
@@ -79,33 +81,43 @@ class TobiiSelection:
     def __repr__(self):
         return "{} ({})".format(self.name, self.id)
     
+    def __str__(self):
+        return self.__repr__()  
 
 class _RemoteTobii:
+    
     def __init__(self, endpoint):
         if tobiiglassesctrl is None:
             raise ImportError("Required model tobiiglassesctrl not found. Install this module with pip install tobiiglassesctrl to continue.")
         try:
-            self._connection = tobiiglassesctrl.TobiiGlassesController(endpoint)
-        except SystemExit: # handle bad connection
-            raise RuntimeError("Failed to connect to tobii device")
+            self._connection = tobiiglassesctrl.TobiiGlassesController(endpoint, timeout=2)
+        except NameError: # fix python2 missing ConnectionError
+            raise RuntimeError('timeout')
+        
         
     def get_projects(self):
-        return self._connection.get_projects()
+        return [ TobiiSelection(pr['pr_info']['Name'], pr['pr_id']) for pr in self._connection.get_projects() ]
     
     def _get_participants_for_project(self, proj_id):
-        return [ part for part in self._connection.get_participants() if part['pa_project'] == proj_id ]
+        return [ TobiiSelection(part['pa_info']['Name'], part['pa_id'])  for part in self._connection.get_participants() if part['pa_project'] == proj_id ]
         
     def set_project(self, proj_name):
-        proj_id = self._connection.get_project_id(proj_name)
+        if isinstance(proj_name, TobiiSelection):
+            proj_name, proj_id = proj_name.name, proj_name.id
+        else:
+            proj_id = self._connection.get_project_id(proj_name)
         if proj_id is None:
             proj_id = self._connection.create_project(proj_name)
         return TobiiSelection(proj_name, proj_id), self.get_projects(), self._get_participants_for_project(proj_id)
     
     def set_participant(self, proj, part_name):
-        part_id = self._connection.get_participant_id(part_name)
+        if isinstance(part_name, TobiiSelection):
+            part_name, part_id = part_name.name, part_name.id
+        else:
+            part_id = self._connection.get_project_id(part_name)
         if part_id is None:
             part_id = self._connection.create_participant(proj.id, part_name)
-        return TobiiSelection(part_name, part_id), self._get_participants_for_project(proj.id), []
+        return TobiiSelection(part_name, part_id), self._get_participants_for_project(proj.id), None
     
     def set_calibration(self, proj, part, cal=None):
         cal_id = self._connection.create_calibration(proj.id, part.id)
@@ -114,7 +126,7 @@ class _RemoteTobii:
         res = self._connection.wait_until_calibration_is_done(cal_id)
         if not res:
             raise RuntimeError("Calibration failed, please retry")
-        return None, [], []
+        return None, [], None
     
     def set_recording(self, proj, part, cal=None, rec=''):
         rec_id = self._connection.create_recording(part.id, rec)
@@ -196,12 +208,15 @@ class TobiiConnection:
             setattr(self, value_name, val)
             self.__reset_state_to(next_state)
             return True, None, val, cur_opts, next_opts
+        except urllib2.HTTPError as e:
+            self.__reset_state_to(expected_state)
+            return False, str(e) + ': ' + e.read(), value, None, []            
         except BaseException as e:
             traceback.print_exc()
             # reset state
             # or before if no connection?
             self.__reset_state_to(expected_state)
-            return False, str(e), val, None, []
+            return False, str(e), value, None, []
         
         
         
@@ -218,7 +233,7 @@ class TobiiConnection:
     @_Decorators.make_state_transition(_States.DISCONNECTED, _States.REQ_PROJECT, '_endpoint')
     def update_endpoint(self, endpoint):
         if endpoint not in self._connection:
-            self._connection[endpoint] = _DummyTobii()
+            self._connection[endpoint] = _RemoteTobii(endpoint)
         return endpoint, None, self._connection[endpoint].get_projects()
      
     @_Decorators.make_state_transition(_States.REQ_PROJECT, _States.REQ_PARTICIPANT, '_project')   
@@ -256,7 +271,7 @@ class GazeInterfaceSelector:
         self.selector_buttons = { gaze_type: Tkinter.Button(frame, text=LABELS[gaze_type], command=self.make_gaze_selector(gaze_type)) 
                                  for gaze_type in GAZE_TYPES }
         for i, k in enumerate(GAZE_TYPES):
-            self.selector_buttons[k].grid(row=2+i, sticky=Tkinter.N+Tkinter.W+Tkinter.E)
+            self.selector_buttons[k].grid(row=1+i, sticky=Tkinter.N+Tkinter.W+Tkinter.E)
         
         self.gaze_option = 'none'
         
@@ -345,7 +360,7 @@ class GazeInterfaceSelector:
         self.combobox_tobii_recording['state'] = 'disabled'
 
         # Tobii status
-        self.label_tobii_status = Tkinter.Label(self.tobii_frame, text="Not connected", font=self.status_font)
+        self.label_tobii_status = Tkinter.Label(self.tobii_frame, text="Not connected", font=self.status_font, wraplength=250, justify='left')
         self.label_tobii_status.grid(sticky=Tkinter.W)
         
         # Set up callbacks
@@ -421,16 +436,26 @@ class GazeInterfaceSelector:
         def update_tobii_values(evt=None):
             self.label_tobii_status['text'] = pre_status
             self.label_tobii_status.update_idletasks()
-            res, msg, val, vals, next_vals = update_fcn(var.get() if var is not None else None)
+            
+            if var is None:
+                value = None
+            elif hasattr(evt.widget, 'selection_vals') and evt.widget.current() >= 0:
+                print('selection vals: {}, cur: {}'.format(evt.widget.selection_vals, evt.widget.current()))
+                value = evt.widget.selection_vals[evt.widget.current()] 
+            else:
+                value = var.get() 
+            res, msg, val, vals, next_vals = update_fcn(value)
             if res:
                 if vals is not None and evt is not None:
-                    evt.widget['values'] = vals
+                    evt.widget['values'] = [repr(n) for n in vals]
+                    evt.widget.selection_vals = vals
                 if val is not None and val != '':
                     var.set(val)
                 if next_field is not None:
                     if next_vals is not None:
-                        next_field.configure(values=next_vals)
+                        next_field.configure(values=[repr(n) for n in next_vals])
                         next_field.set("")
+                        next_field.selection_vals = next_vals
                     next_field.configure(state='normal')
                 self.label_tobii_status['text'] = success_status
             else:
@@ -453,7 +478,6 @@ class GazeInterfaceSelector:
     def make_gaze_selector(self, val):
         def select_gaze():
             for k in self.gaze_conn_info_elems.keys():
-                print('{}, {}'.format(k, val))
                 do_enable = (k == val)
                 for elem in self.gaze_conn_info_elems[k]:
                     if do_enable:
