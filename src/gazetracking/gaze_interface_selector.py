@@ -1,8 +1,16 @@
 #!/usr/bin/env python
+from distlib.compat import raw_input
 
-import Tkinter
-import ttk
-import tkFont
+try:
+    import Tkinter
+    import ttk
+    import tkFont
+except ImportError:
+    import tkinter as Tkinter
+    import tkinter.ttk as ttk
+    import tkinter.font as tkFont
+    
+    
 import gazetracking.pupil_capture as pupil
 import gazetracking.tobii_interface as tobii
 import logging
@@ -278,29 +286,36 @@ class GazeInterfaceTester():
             self.master.update()
             
             if self._start_gaze:
-                return self.selector.get_recorder()
+                recorder = self.selector.get_recorder()
+                if recorder is not None:
+                    return recorder
             time.sleep(0.01)
             
-        
+
 if __name__ == "__main__":
+    try: # handle python2 and 3
+        input = raw_input
+    except NameError:
+        pass
+    
     tester = GazeInterfaceTester()
     recorder = tester.run()
     if recorder:
         while True:
-            input = raw_input('enter start, stop, event <name> <details>, quit\n> ')
-            if input == 'start':
+            inpt = input('enter start, stop, event <name> <details>, quit\n> ')
+            if inpt == 'start':
                 res = recorder.start()
                 print('started, res={}'.format(res))
-            elif input == 'stop':
+            elif inpt == 'stop':
                 res = recorder.stop()
                 print('stopped, res={}'.format(res))
-            elif input.startswith('event'):
-                vals = ' '.split(input)
+            elif inpt.startswith('event'):
+                vals = inpt.split(' ')
                 v1 = vals[1] if len(vals) > 1 else ''
                 v2 = vals[2] if len(vals) > 2 else ''
                 res = recorder.send_event(v1, v2)
                 print('sent event {} {}, res={}'.format(v1, v2, res))
-            elif input == 'quit':
+            elif inpt == 'quit':
                 break
     
     

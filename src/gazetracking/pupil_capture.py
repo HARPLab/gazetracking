@@ -2,12 +2,15 @@
 
 import zmq
 import time
-import rospy
-
+rospy = None
 
 class PupilCapture():
 
     def setup(self, log):
+        global rospy
+        if rospy is None:
+            import rospy
+            
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
         self.logger = log

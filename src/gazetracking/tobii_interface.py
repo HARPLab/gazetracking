@@ -1,6 +1,8 @@
 
-
-import urllib2
+try:
+    import urllib2
+except ImportError:
+    import urllib.error as urllib2
 import traceback
 
 class _DummyTobii:
