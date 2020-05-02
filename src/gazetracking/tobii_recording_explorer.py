@@ -81,7 +81,7 @@ def get_recording_info_from_iid(iid):
     if m is None:
         return None, None, None
     else:
-        return m[1], m[2], int(m[3])
+        return m.group(1), m.group(2), int(m.group(3))
     
 """
 Bugfix on video advancing
